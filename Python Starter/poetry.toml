@@ -1,0 +1,9 @@
+# This is a workaround to a bug within the hosted renovate docker image. 
+# poetry attempts to use a cache directory that has already been created but owned by root (poetry not running as root) 
+# and it is failing. 
+# I was able to get around this by altering the cache directory used by poetry via config 
+# The default normally is ~/.cache/pypoetry and .cache was owned by root. 
+# So simply altering the directory to another within home seemed to work.
+cache-dir = "~/.pypoetry_cache"
+[virtualenvs]
+in-project = true
