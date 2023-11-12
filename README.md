@@ -1,6 +1,7 @@
-# wine-aggregator
+# Wine Aggregator
 
 [![Build Status](https://github.com/Rooknj/wine-aggregator/actions/workflows/python-app.yml/badge.svg)](https://github.com/Rooknj/wine-aggregator/actions/workflows/python-app.yml)
+[![codecov](https://codecov.io/github/Rooknj/wine-aggregator/graph/badge.svg?token=G9LSIQ0WLG)](https://codecov.io/github/Rooknj/wine-aggregator)
 
 ## Development
 
