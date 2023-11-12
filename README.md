@@ -2,7 +2,7 @@
 
 [![Build](https://github.com/Rooknj/wine-aggregator/actions/workflows/Build.yml/badge.svg)](https://github.com/Rooknj/wine-aggregator/actions/workflows/Build.yml)[![codecov](https://codecov.io/github/Rooknj/wine-aggregator/graph/badge.svg?token=G9LSIQ0WLG)](https://codecov.io/github/Rooknj/wine-aggregator)
 [![Renovate enabled](https://img.shields.io/badge/renovate-enabled-brightgreen.svg)](https://renovatebot.com/)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 ## Development
 
