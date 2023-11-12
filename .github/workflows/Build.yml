@@ -34,9 +34,10 @@ jobs:
         run: |
           poetry run black --check --diff .
           poetry run isort --check-only --df .
+          poetry run mypy app
       - name: Test 🧪
         run: |
-          poetry run pytest --cov=wine_aggregator --cov-report html:build/html --cov-report xml:build/cov.xml --cov-report term --junitxml=./build/reports/test-results/report.xml tests/unit
+          poetry run pytest --cov=app --cov-report html:app/build/html --cov-report xml:app/build/cov.xml --cov-report term --junitxml=./app/build/reports/test-results/report.xml tests/unit
       - name: Acceptance Tests ✅
         run: |
           poetry run behave tests/acceptance/features
