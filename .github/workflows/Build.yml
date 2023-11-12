@@ -19,15 +19,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python 3.12
+      - name: Set up Python 🐍
         uses: actions/setup-python@v4
         with:
           python-version: "3.12"
-      - name: Set up Poetry
+      - name: Set up Poetry 📖
         uses: Gr1N/setup-poetry@v8
         with:
           poetry-version: "1.7.0"
-      - run: poetry --version
       - name: Install dependencies
         run: |
           poetry install
@@ -35,10 +34,13 @@ jobs:
         run: |
           poetry run black --check --diff .
           poetry run isort --check-only --df .
-      - name: Test with pytest
+      - name: Test 🧪
         run: |
           poetry run pytest --cov=wine_aggregator --cov-report html:build/html --cov-report xml:build/cov.xml --cov-report term --junitxml=./build/reports/test-results/report.xml tests/unit
-      - name: Codecov
+      - name: Acceptance Tests ✅
+        run: |
+          poetry run behave tests/acceptance/features
+      - name: Codecov ☂️
         # You may pin to the exact commit or the version.
         # uses: codecov/codecov-action@eaaf4bedf32dbdc6b720b63067d99c4d77d6047d
         uses: codecov/codecov-action@v3.1.4
