@@ -30,7 +30,6 @@ behave = "^1.2.6"
 # Exclude a variety of commonly ignored directories.
 extend-exclude = [
     "Python Starter",
-    "tests/acceptance"
 ]
 
 [build-system]
