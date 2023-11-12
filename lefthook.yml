@@ -15,4 +15,4 @@ pre-commit:
   commands:
     lint:
       glob: "*.py"
-      run: "poetry run black {staged_files} && poetry run isort {staged_files} && git add {staged_files}"
+      run: "poetry run ruff format {staged_files} && poetry run ruff check {staged_files} --fix && git add {staged_files}"

@@ -26,12 +26,12 @@ pytest-mock = "^3.11.1"
 #wiremock = "^2.6.0"
 behave = "^1.2.6"
 
-[tool.black]
-line-length = 88
-target-version = ['py310']
-
-[tool.isort]
-profile = "black"
+[tool.ruff]
+# Exclude a variety of commonly ignored directories.
+extend-exclude = [
+    "Python Starter",
+    "tests/acceptance"
+]
 
 [build-system]
 requires = ["poetry-core>=1.4.2"]

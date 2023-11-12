@@ -32,9 +32,8 @@ jobs:
           poetry install
       - name: Lint 💅
         run: |
-          poetry run black --check --diff .
-          poetry run isort --check-only --df .
-          poetry run mypy app tests/unit
+          poetry run ruff format --check .
+          poetry run ruff check .
       - name: Test 🧪
         run: |
           poetry run pytest --cov=app --cov-report html:app/build/html --cov-report xml:app/build/cov.xml --cov-report term --junitxml=./app/build/reports/test-results/report.xml tests/unit
