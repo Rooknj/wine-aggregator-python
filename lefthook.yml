@@ -1,0 +1,18 @@
+############################################################################
+##                                                                        ##
+## Lefthook manages git hooks and will run after installation, more info: ##
+##   https://github.com/Arkweid/lefthook/blob/master/docs/full_guide.md   ##
+##                                                                        ##
+## Installation:                                                          ##
+##   brew install Arkweid/lefthook/lefthook                               ##
+##   lefthook install                                                     ##
+##                                                                        ##
+## Usage Ex:                                                              ##
+##   lefthook run pre-commit                                              ##
+##                                                                        ##
+############################################################################
+pre-commit:
+  commands:
+    lint:
+      glob: "*.py"
+      run: "poetry run black {staged_files} && poetry run isort {staged_files} && git add {staged_files}"

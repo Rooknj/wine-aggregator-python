@@ -1,0 +1,35 @@
+[tool.poetry]
+name = "wine-aggregator"
+version = "0.1.0"
+description = ""
+authors = ["Nick Rook <rooknj@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+coverage = "^7.2.7"
+
+[tool.poetry.group.dev.dependencies]
+black = "^23.3.0"
+isort = "^5.12.0"
+
+[tool.poetry.group.test.dependencies]
+# Needed by FastAPI TestClient
+#requests = "^2.30.0"
+pytest = "^7.3.2"
+pytest-cov = "^4.1.0"
+pytest-mock = "^3.11.1"
+#pytest-asyncio = "^0.21.0"
+#wiremock = "^2.6.0"
+
+[tool.black]
+line-length = 88
+target-version = ['py310']
+
+[tool.isort]
+profile = "black"
+
+[build-system]
+requires = ["poetry-core>=1.4.2"]
+build-backend = "poetry.core.masonry.api"
+

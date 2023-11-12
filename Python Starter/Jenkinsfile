@@ -1,0 +1,344 @@
+// The library version is controlled from the Jenkins configuration
+// To force a version add after lib '@' followed by the version.
+@Library(value = 'msaas-shared-lib', changelog = false) _
+
+node {
+    // setup the global static configuration
+    config = setupMsaasPipeline('msaas-config.yaml')
+
+    // Build specific setup
+    BUILD_STASH = 'Build Stash'
+    ACCEPTANCE_BUILD_STASH = 'Acceptance Build Stash'
+}
+
+pipeline {
+    options {
+        preserveStashes(buildCount: 5)
+    }
+
+    agent {
+        kubernetes {
+            label "${config.pod_label}"
+            yamlFile 'KubernetesPods.yaml'
+        }
+    }
+
+    stages {
+        stage('PRE-BUILD:') {
+            parallel {
+                stage('Setup Capabilities') {
+                    steps {
+                        setupCapabilities(config, [filepathExclusionRegexes: []])
+                    }
+                }
+                stage('Setup Python') {
+                    steps {
+                        container('python') {
+                            sh 'mkdir -p /opt/poetry && python -m venv /opt/poetry/venv && /opt/poetry/venv/bin/python -m pip install -U pip setuptools && /opt/poetry/venv/bin/python -m pip install poetry==1.4.2'
+                            // TODO: Figure out how to get the path to work correctly
+                            // sh 'export PATH=/opt/poetry/venv/bin:$PATH'
+                            // sh 'poetry --version'
+                            sh '/opt/poetry/venv/bin/poetry --version && /opt/poetry/venv/bin/poetry config virtualenvs.in-project true --local'
+                            // This is done to elimiate ValueError: Package('setuptools', '67.8.0') is not in list due to
+                            //   Connection pool is full, discarding connection: artifact.intuit.com. Connection pool size: 10
+                            sh '/opt/poetry/venv/bin/poetry config installer.max-workers 10'
+                            sh '/opt/poetry/venv/bin/poetry install --no-root'
+                        }
+                    }
+                }
+            }
+        }
+        stage('Lint 💅') {
+            parallel {
+                stage('Python: black') {
+                    steps {
+                        container('python') {
+                            script {
+                                sh '/opt/poetry/venv/bin/poetry run black --check --diff .'
+                            }
+                        }
+                    }
+                }
+                stage('Python: isort') {
+                    steps {
+                        container('python') {
+                            script {
+                                sh '/opt/poetry/venv/bin/poetry run isort --check-only --df .'
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        stage('Test 🧪') {
+            steps {
+                container('python') {
+                    script {
+                        // NOTE: you can use --cov-append to add coverage data to previous test runs (good for acceptance tests)
+                        sh '/opt/poetry/venv/bin/poetry run pytest --disable-warnings --cov=app --cov-report html --cov-report xml --cov-report term --junitxml=./build/reports/test-results/report.xml app/test/unit'
+                    }
+                }
+            }
+            post {
+                always {
+                    script {
+                        // Stash the build files to be used later for recording test results/coverage
+                        stash includes: '**/build/**/*', name: BUILD_STASH
+                    }
+                }
+            }
+        }
+        stage('Build 🏗️') {
+            steps {
+                container('podman') {
+                    // if poetry.lock is not in source control,
+                    // create it and Dockerfile will handle an empty file.
+                    sh 'touch -a poetry.lock'
+                    podmanBuild("--rm=false -t ${config.image_full_name} .")
+                }
+            }
+        }
+        stage('Publish 🐳') {
+            // stage('Release Candidate') {
+                steps {
+                    container('podman') {
+                        podmanPush(config)
+                    }
+                }
+            // }
+        }
+        stage('ACCEPTANCE:') {
+            when {
+                anyOf {
+                    branch 'master'
+                    changeRequest()
+                }
+            }
+            stages {
+                stage('Setup Acceptance Env 🥑') {
+                    steps {
+                        container('cdtools') {
+                            // Use kustomize to replace the default local test images with the newly built release candidate
+                            sh(label: 'Set app image to release candidate', script: "(cd infra/dependencies/ci && kustomize edit set image localhost/qbaa-genai-service=${config.image_full_name})")
+                            // This generates the kubernetes YAML configuration to run acceptance tests in and stores in in the CI_YAML variable
+                            script {
+                                CI_YAML = sh(label: 'kustomize pod', script: 'kustomize build infra/dependencies/ci', returnStdout: true)
+                            }
+                            echo(CI_YAML)
+                        }
+                    }
+                }
+                stage('Acceptance Tests ✅') {
+                    options {
+                        timeout(time: 20, unit: 'MINUTES')
+                    }
+                    parallel {
+                        stage('CPD Certification & Publish') {
+                            steps {
+                                container('cpd2') {
+                                    intuitCPD2Podman(config, "-i ${config.image_full_name} --buildfile Dockerfile")
+                                }
+                                container('podman') {
+                                    podmanPull(config, config.image_full_name)
+                                    podmanInspect(config, '-s', 'image-metadata.json')
+                                    archiveArtifacts(artifacts: 'image-metadata.json', allowEmptyArchive: true)
+                                }
+                            }
+                        }
+                        stage('Acceptance/Integration Tests') {
+                            agent {
+                                kubernetes {
+                                    yaml CI_YAML
+                                }
+                            }
+                            steps {
+                                container('bash') {
+                                    // Timeout in seconds
+                                    sh script: './infra/wait-for https://localhost:8443/health/full --timeout=600'
+                                }
+                                container('test') {
+                                    sh 'mkdir -p /opt/poetry && python -m venv /opt/poetry/venv && /opt/poetry/venv/bin/python -m pip install -U pip setuptools && /opt/poetry/venv/bin/python -m pip install poetry==1.4.2'
+                                    sh '/opt/poetry/venv/bin/poetry --version && /opt/poetry/venv/bin/poetry config virtualenvs.in-project true --local'
+                                    sh '/opt/poetry/venv/bin/poetry config installer.max-workers 10'
+                                    sh '/opt/poetry/venv/bin/poetry install --no-root'
+
+                                    sh(label: 'Running acceptance tests', script: '/opt/poetry/venv/bin/poetry run pytest --disable-warnings --junitxml=./build/reports/test-results/acceptance-report.xml app/test/acceptance')
+                                    sh(label: 'Dumping coverage', script: '/opt/poetry/venv/bin/poetry run python app/test/acceptance/dumpCoverage.py')
+                                }
+                            }
+                            post {
+                                always {
+                                    script {
+                                        appLog = containerLog name: 'api', returnLog: true
+
+                                        // Display the logs from the app container so you can debug acceptance tests
+                                        echo 'Api container logs to debug failing acceptance tests (Below)'
+                                        echo(appLog)
+                                        // Stash the build files to be used later for recording test results/coverage
+                                        stash includes: '**/build/**/*', name: ACCEPTANCE_BUILD_STASH
+                                    }
+                                }
+                                success {
+                                    githubNotify context: 'Component Functional Tests', credentialsId: 'github-svc-sbseg-ci', gitApiUrl: config['github_api_endpoint'], description: 'Tests Passed', status: 'SUCCESS', targetUrl: env.JOB_URL + '/' + env.BUILDNUMBER + '/Component_20Functional_20Test_20Results'
+                                }
+                                failure {
+                                    githubNotify context: 'Component Functional Tests', credentialsId: 'github-svc-sbseg-ci', gitApiUrl: config['github_api_endpoint'], description: 'Tests are failing', status: 'FAILURE', targetUrl: env.RUN_DISPLAY_URL
+                                }
+                            }
+                        }
+                        stage('Perf Tests') {
+                            steps {
+                                script {
+                                    echo 'TODO: Create and Run Performance Tests'
+                                }
+                            }
+                            post {
+                                success {
+                                    githubNotify context: 'Component Perf Tests', credentialsId: 'github-svc-sbseg-ci', gitApiUrl: config['github_api_endpoint'], description: 'Tests Passed', status: 'SUCCESS', targetUrl: env.JOB_URL + '/' + env.BUILDNUMBER + '/Component_20Perf_20Test_20Results'
+                                }
+                                failure {
+                                    githubNotify context: 'Component Perf Tests', credentialsId: 'github-svc-sbseg-ci', gitApiUrl: config['github_api_endpoint'], description: 'Tests are failing', status: 'FAILURE', targetUrl: env.RUN_DISPLAY_URL
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('qal-usw2-eks') {
+            when {
+                beforeOptions true
+                allOf {
+                    branch 'master'
+                    not { changeRequest() }
+                }
+            }
+            options {
+                lock(resource: getEnv(config, 'qal-usw2-eks').namespace, inversePrecedence: true)
+                timeout(time: 32, unit: 'MINUTES')
+            }
+            stages {
+                stage('Scorecard Check') {
+                    when { expression { return config.enableScorecardReadinessCheck } }
+                    steps {
+                        scorecardPreprodReadiness(config, 'qal-usw2-eks')
+                    }
+                }
+                stage('Deploy') {
+                    steps {
+                        container('cdtools') {
+                            // This has to be the first action in the first sub-stage
+                            milestone(ordinal: 10, label: 'Deploy-qal-usw2-eks-milestone')
+                            gitOpsDeploy(config, 'qal-usw2-eks', config.image_full_name)
+                        }
+                    }
+                }
+                stage('Transition Jira Tickets') {
+                    when { expression { return config.enableJiraTransition } }
+                    steps {
+                        transitionJiraTickets(config, 'Deployed to PreProd')
+                    }
+                }
+            }
+        }
+        stage('e2e-usw2-eks') {
+            when {
+                beforeOptions true
+                allOf {
+                    branch 'master'
+                    not { changeRequest() }
+                }
+            }
+            options {
+                lock(resource: getEnv(config, 'e2e-usw2-eks').namespace, inversePrecedence: true)
+                timeout(time: 32, unit: 'MINUTES')
+            }
+            stages {
+                stage('Scorecard Check') {
+                    when { expression { return config.enableScorecardReadinessCheck } }
+                    steps {
+                        scorecardPreprodReadiness(config, 'e2e-usw2-eks')
+                    }
+                }
+                stage('Deploy') {
+                    steps {
+                        container('cdtools') {
+                            // This has to be the first action in the first sub-stage
+                            milestone(ordinal: 20, label: 'Deploy-e2e-usw2-eks-milestone')
+                            gitOpsDeploy(config, 'e2e-usw2-eks', config.image_full_name)
+                        }
+                    }
+                }
+                stage('Transition Jira Tickets') {
+                    when { expression { return config.enableJiraTransition } }
+                    steps {
+                        transitionJiraTickets(config, 'Deployed to PreProd')
+                    }
+                }
+            }
+        }
+        stage('PRD primary') {
+            when {
+                beforeOptions true
+                allOf {
+                    branch 'master'
+                    not { changeRequest() }
+                    not { expression { return config.preprodOnly } }
+                }
+            }
+            options {
+                lock(resource: getEnv(config, getEnvName(config, 'primary')).namespace, inversePrecedence: true)
+                timeout(time: 32, unit: 'MINUTES')
+            }
+            stages {
+                stage('Deploy') {
+                    steps {
+                        container('cdtools') {
+                            // This has to be the first action in the first sub-stage.
+                            gitOpsDeploy(config, getEnvName(config, 'primary'), config.image_full_name)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            sendMetrics(config)
+            script {
+                try {
+                    unstash BUILD_STASH
+                    unstash ACCEPTANCE_BUILD_STASH
+                } catch (ignored) {
+                    print 'Unstash failed. Likely due to a test failure preventing the pipeline from finishing. ignoring'
+                }
+
+                codeCov(config)
+
+                // Always record test results
+                try {
+                    junit '**/test-results/**/*.xml'
+                } catch (e) {
+                    print 'Reporting failed, likely due to a skipped or incomplete build. See error below:'
+                    print e
+                }
+            }
+        }
+        fixed {
+            script {
+                if (env.BRANCH_NAME == 'master') {
+                    slackSend(message: "🍺 [GenAI] - build <${env.RUN_DISPLAY_URL}|#${env.BUILD_NUMBER}> fixed ✅", color: '#00FF00', channel: '#qbaa-genai-ci')
+                }
+            }
+        }
+        failure {
+            script {
+                if (env.BRANCH_NAME == 'master') {
+                    slackSend(message: "🍺 [GenAI] - @here build <${env.RUN_DISPLAY_URL}|#${env.BUILD_NUMBER}> failed ❌", color: '#FF0000', channel: '#qbaa-genai-ci')
+                }
+            }
+        }
+    }
+}

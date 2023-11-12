@@ -1,0 +1,37 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "local>AppFabric/renovate-config"
+  ],
+  "automerge": false,
+  "patch": {
+    "automerge": true
+  },
+  "kubernetes": {
+    "fileMatch": [
+      "infra/.+\\.yaml$"
+    ]
+  },
+  "packageRules": [
+    {
+      "groupName": "pydantic",
+      "matchPackagePatterns": [
+        "pydantic"
+      ],
+      "allowedVersions": "<2.0.0",
+      "prBodyNotes": [
+        "We need to upgrade fastAPI in order to update pydantic"
+      ]
+    },
+    {
+      "groupName": "fastAPI",
+      "matchPackagePatterns": [
+        "fastapi"
+      ],
+      "enabled": false,
+      "prBodyNotes": [
+        "GenOS uses a specific fastapi version so we can't manually upgrade"
+      ]
+    }
+  ]
+}
