@@ -13,9 +13,8 @@ python = "^3.11"
 coverage = "^7.2.7"
 
 [tool.poetry.group.dev.dependencies]
-black = "^23.3.0"
-isort = "^5.12.0"
 mypy = "^1.7.0"
+ruff = "^0.1.5"
 
 [tool.poetry.group.test.dependencies]
 # Needed by FastAPI TestClient
@@ -27,12 +26,11 @@ pytest-mock = "^3.11.1"
 #wiremock = "^2.6.0"
 behave = "^1.2.6"
 
-[tool.black]
-line-length = 88
-target-version = ['py310']
-
-[tool.isort]
-profile = "black"
+[tool.ruff]
+# Exclude a variety of commonly ignored directories.
+extend-exclude = [
+    "Python Starter",
+]
 
 [build-system]
 requires = ["poetry-core>=1.4.2"]
