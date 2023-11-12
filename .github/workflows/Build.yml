@@ -34,6 +34,7 @@ jobs:
         run: |
           poetry run ruff format --check .
           poetry run ruff check .
+          poetry run mypy app tests
       - name: Test 🧪
         run: |
           poetry run pytest --cov=app --cov-report html:app/build/html --cov-report xml:app/build/cov.xml --cov-report term --junitxml=./app/build/reports/test-results/report.xml tests/unit

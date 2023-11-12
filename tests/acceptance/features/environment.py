@@ -1,5 +1,5 @@
-from behave.model import Scenario
-from behave.runner import Context
+from behave.model import Scenario  # type: ignore
+from behave.runner import Context  # type: ignore
 
 
 def before_scenario(context: Context, scenario: Scenario):
