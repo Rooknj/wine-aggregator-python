@@ -14,7 +14,7 @@ coverage = "^7.2.7"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.7.0"
-ruff = "^0.1.5"
+ruff = "^0.2.0"
 
 [tool.poetry.group.test.dependencies]
 # Needed by FastAPI TestClient
