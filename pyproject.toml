@@ -11,10 +11,14 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.11"
 coverage = "^7.2.7"
+pandas = "^2.1.3"
+beautifulsoup4 = "^4.12.2"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.7.0"
 ruff = "^0.2.0"
+pandas-stubs = "^2.1.1.230928"
+types-beautifulsoup4 = "^4.12.0.7"
 
 [tool.poetry.group.test.dependencies]
 # Needed by FastAPI TestClient
@@ -31,6 +35,9 @@ behave = "^1.2.6"
 extend-exclude = [
     "Python Starter",
 ]
+
+[tool.mypy]
+strict = true
 
 [build-system]
 requires = ["poetry-core>=1.4.2"]
